@@ -1,0 +1,89 @@
+<h3>Set the input parameter ranges for the training set:</h3>
+<div class="rendered-form">
+    <form id="set_params" action="/set_params" method="POST"></form>
+    <div class="formbuilder-text form-group field-n_train"><label class="formbuilder-text-label" for="n_train">Train
+        size</div>
+    <div class="formbuilder-text form-group field-n_train"><input id="n_train" class="form-control"
+                                                                  title="Integer number for train set size"
+                                                                  maxlength="10"
+                                                                  name="n_train" type="text" value="1000"
+                                                                  placeholder="1000"/></div>
+    <div class="formbuilder-text form-group field-n_train"><label class="formbuilder-text-label" for="n_train">Test
+        size</label></div>
+    <div class="formbuilder-text form-group field-n_test"><input id="n_train" class="form-control"
+                                                                 title="Integer number for test set size" maxlength="10"
+                                                                 name="n_test" type="text" value="100"
+                                                                 placeholder="100"/>
+    </div>
+    <div class="formbuilder-text form-group field-n_test">&nbsp;</div>
+    <div class="formbuilder-text form-group field-n_test">
+        <table style="border-collapse: collapse; width: 43.6271%;" border="1">
+            <tbody>
+            <tr>
+                <td style="width: 4.22928%; text-align: center;"><strong>Parameter name</strong></td>
+                <td style="width: 4.21941%; text-align: center;"><strong>Parameter range</strong></td>
+            </tr>
+            <tr>
+                <td style="width: 4.22928%; text-align: left;"><em>Spot</em></td>
+                <td style="width: 4.21941%; text-align: center;">
+                    <div class="formbuilder-text form-group field-spot"><label class="formbuilder-text-label"
+                                                                               for="spot"></label> <input id="spot"
+                                                                                                          class="form-control"
+                                                                                                          name="spot"
+                                                                                                          type="text"
+                                                                                                          value="(0.5, 2)"
+                                                                                                          placeholder="(0.5, 2)"/>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 4.22928%; text-align: left;"><em>Time</em></td>
+                <td style="width: 4.21941%; text-align: center;">
+                    <div class="formbuilder-text form-group field-time"><label class="formbuilder-text-label"
+                                                                               for="&quot;time"></label> <input
+                            id="time"
+                            class="form-control"
+                            name="time"
+                            type="text"
+                            value="(0, 3.0)"
+                            placeholder="(0, 3.0)"/>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 4.22928%; text-align: left;"><em>Sigma</em></td>
+                <td style="width: 4.21941%; text-align: center;">
+                    <div class="formbuilder-text form-group field-spot"><label class="formbuilder-text-label"
+                                                                               for="&quot;sigma"></label> <input
+                            id="sigma"
+                            class="form-control"
+                            name="sigma"
+                            type="text"
+                            value="(0.1, 0.5)"
+                            placeholder="(0.1, 0.5)"/>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td style="width: 4.22928%; text-align: left;"><em>Rate</em></td>
+                <td style="width: 4.21941%; text-align: center;">
+                    <div class="formbuilder-text form-group field-rate"><label class="formbuilder-text-label"
+                                                                               for="&quot;rate"></label> <input
+                            id="rate"
+                            class="form-control"
+                            name="rate"
+                            type="text"
+                            value="(-0.01, 0.03)"
+                            placeholder="(-0.01, 0.03)"/>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p>&nbsp;</p>
+    </div>
+    <div class="formbuilder-button form-group field-submit">
+        <button id="submit" class="btn-success btn" name="submit" type="submit" value="Submit">Submit</button>
+    </div>
+</div>
+</form>
