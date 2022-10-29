@@ -1,12 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error as mse
 from tqdm import tqdm
 import warnings
 
 import tensorflow as tf2
 from tensorflow import keras
-
 
 print("TF version =", tf2.__version__)
 
@@ -28,9 +26,9 @@ print("GPU support = ", tf.test.is_gpu_available())
 # representation of real numbers in TF, change here for 32/64 bits
 real_type = tf.float32
 
+
 # define the Keras TensorBoard callback.
-logdir = "./logs/diffML" #/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
+
 
 def vanilla_net(
         input_dim,  # dimension of inputs, e.g. 10
@@ -268,13 +266,13 @@ def train(xTest, yTest, dydxTest,
           min_batch_size=256,
           # callback function and when to call it
           callback=None,  # arbitrary callable
-          callback_epochs=False, # call after what epochs, e.g. [5, 20]
+          callback_epochs=False,  # call after what epochs, e.g. [5, 20]
           lam=1
-        ):
+          ):
     # batching
     batch_size = max(min_batch_size, approximator.m // batches_per_epoch)
 
-    # one-cycle learning rate sechedule
+    # one-cycle learning rate schedule
     lr_schedule_epochs, lr_schedule_rates = zip(*learning_rate_schedule)
 
     # reset
@@ -323,22 +321,6 @@ def train(xTest, yTest, dydxTest,
                 batch_size,
                 approximator.session)
 
-        y_pred, dydx_pred = approximator.predict_values_and_derivs(approximator.x)
-        loss_vals = mse(approximator.y, y_pred)
-        loss_derivs = mse(approximator.dy_dx, dydx_pred)
-        # print(f'ep {epoch} val: {loss_vals}, deriv: {loss_derivs}')
-
-        writer.add_scalar('train_loss_values', loss_vals, global_step=epoch)
-        writer.add_scalar('train_loss_derivs', loss_derivs, global_step=epoch)
-
-        y_pred, dydx_pred = approximator.predict_values_and_derivs(xTest)
-        loss_vals = mse(yTest, y_pred)
-        loss_derivs = mse(dydxTest, dydx_pred)
-        # print(f'ep {epoch} val: {loss_vals}, deriv: {loss_derivs}')
-
-        writer.add_scalar('test_loss_values', loss_vals, global_step=epoch)
-        writer.add_scalar('test_loss_derivs', loss_derivs, global_step=epoch)
-
         # callback, if requested
         if callback:
             callback(approximator, epoch)
@@ -348,11 +330,11 @@ def train(xTest, yTest, dydxTest,
         callback(approximator, epochs)
 
 
-class Neural_Approximator():
+class Neural_Approximator(keras.Model):
 
-    def __init__(self, x_raw, y_raw,
+    def __init__(self, x_raw=None, y_raw=None,
                  dydx_raw=None):  # derivatives labels,
-
+        super(Neural_Approximator, self).__init__()
         self.x_raw = x_raw
         self.y_raw = y_raw
         self.dydx_raw = dydx_raw
@@ -411,8 +393,8 @@ class Neural_Approximator():
                 self.derivs_predictions, \
                 self.learning_rate, \
                 self.loss, \
-                self.minimizer = diff_training_graph(self.n, hidden_units, \
-                                                     hidden_layers, weight_seed, \
+                self.minimizer = diff_training_graph(self.n, hidden_units,
+                                                     hidden_layers, weight_seed,
                                                      self.alpha, self.beta, self.lambda_j)
 
             # global initializer
@@ -471,6 +453,8 @@ class Neural_Approximator():
               callback,
               callback_epochs,
               lam=lam)
+        saver = tf.train.Saver()
+        saver.save(self.session, 'my_test_model')
 
     def predict_values(self, x):
         # scale

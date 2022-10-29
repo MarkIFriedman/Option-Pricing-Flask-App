@@ -40,6 +40,9 @@ class RiskFuelNet(torch.nn.Module):
         x = self.linears[-1](x)
         return x
 
+def predict(model, x_test):
+    return model(to_tensor(x_test).to(device)).flatten().data.cpu().numpy()
+
 
 def fit_net(net: RiskFuelNet, n_epochs: int, x_train: np.ndarray, y_train: np.ndarray,
             x_test: np.ndarray, y_test: np.ndarray, device=device):
