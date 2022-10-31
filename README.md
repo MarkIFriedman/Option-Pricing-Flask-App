@@ -15,4 +15,4 @@ cd option-pricing-flask-app
 
 ```pip3 install -r requirements.txt```
 
-Run  http://127.0.0.1:5001
+* run  http://127.0.0.1:5001
