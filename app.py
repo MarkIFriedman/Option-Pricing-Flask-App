@@ -6,7 +6,7 @@ from flask_restx import Api, Resource
 from sklearn.metrics import mean_squared_error as mse
 
 from option_pricing import BlackScholes as bs
-from option_pricing import differentialML as dfml
+# from option_pricing import differentialML as dfml
 from option_pricing import riskFuel as rf
 
 import pickle
@@ -139,40 +139,43 @@ class CatBoost(Resource):
 api.add_resource(CatBoost, '/CatBoost')
 
 
-class DiffML(Resource):
-    """
-        A class to represent DiffML model.
+# class DiffML(Resource):
+#     """
+#         A class to represent DiffML model.
+#
+#         Methods
+#         -------
+#         get:
+#             To see the description of the model, parameters description and default parameters
+#         post:
+#             Update model parameters according to a given input
+#     """
+#
+#     def get(self):
+#         """See the description of the model, parameters description and default parameters"""
+#         response = {'model name': 'DiffML',
+#                     'model id': 3,
+#                     'params description': {'differential': 'boolean, depending on what model you would like to use',
+#                                            'lambda': 'non-negative real number, parameter used in loss function'
+#                                                      'MSE_val + lambda * MSE_deriv'},
+#                     'default params': model_params['DiffML'],
+#                     }
+#         return jsonify(response)
+#
+#     def post(self):
+#         """Update model parameters according to a given input"""
+#         params = request.json
+#         if 'differential' not in params:
+#             params.update({'differential': True})
+#         if 'lambda' not in params:
+#             params.update({'lambda': 1})
+#         return params
+#
+#
+# api.add_resource(DiffML, '/DiffML')
 
-        Methods
-        -------
-        get:
-            To see the description of the model, parameters description and default parameters
-        post:
-            Update model parameters according to a given input
-    """
-
-    def get(self):
-        """See the description of the model, parameters description and default parameters"""
-        response = {'model name': 'DiffML',
-                    'model id': 3,
-                    'params description': {'differential': 'boolean, depending on what model you would like to use',
-                                           'lambda': 'non-negative real number, parameter used in loss function'
-                                                     'MSE_val + lambda * MSE_deriv'},
-                    'default params': model_params['DiffML'],
-                    }
-        return jsonify(response)
-
-    def post(self):
-        """Update model parameters according to a given input"""
-        params = request.json
-        if 'differential' not in params:
-            params.update({'differential': True})
-        if 'lambda' not in params:
-            params.update({'lambda': 1})
-        return params
-
-
-api.add_resource(DiffML, '/DiffML')
+def str_to_list(s):
+    return list(map(float, s.split(', ')))
 
 
 @api.route('/train_set_params', methods=['GET', 'POST'])
@@ -183,33 +186,38 @@ class SetTrainGeneratorParams(Resource):
         return jsonify(response)
 
     @api.doc(params={'train_size': {'description': f'num objects for training dataset',
-                                      'type': 'int', 'default': 1000},
+                                    'type': 'int', 'default': 1000},
                      'test_size': {'description': f'num objects for testing dataset',
-                                      'type': 'int', 'default': 500},
+                                   'type': 'int', 'default': 500},
                      'spot': {'description': f'range for spot parametr for generator',
-                                      'type': 'list', 'default': [0.5, 2.]},
+                              'type': 'tuple', 'default': "0.5, 2."},
                      'time': {'description': f'range for time parametr for generator',
-                                      'type': 'list', 'default': [0, 3]},
+                              'type': 'tuple', 'default': "0, 3"},
                      'sigma': {'description': f'range for sigma parametr for generator',
-                                      'type': 'list', 'default': [0.1, 0.5]},
+                               'type': 'tuple', 'default': "0.1, 0.5"},
                      'rate': {'description': f'range for rate parametr for generator',
-                                      'type': 'list', 'default': [-0.01, 0.03]}})
+                              'type': 'tuple', 'default': "-0.01, 0.03"}})
     def post(self):
         """Set parameters for generator to further create training and testing sets"""
         global gen_params, generator
         response = gen_params
-        params = request.args
+        params = dict(request.args)
         for p in params:
             if p not in response:
                 raise Exception(f"You can't specify parameter {p}. "
                                 f"You can only specify parameters {set(gen_params.keys())}")
             if p in {"spot", "time", "sigma", "rate"}:
+                params[p] = str_to_list(params[p])
                 try:
                     a, b = params[p]
+
+                    print(params[p])
                     if a >= b:
                         raise Exception(f"Parameter {p} must be a pair (begin, end), where begin < end")
                 except:
                     Exception(f"Parameter {p} must be a pair (begin, end), that specifies the range to sample from")
+            else:
+                params[p] = int(params[p])
         response.update(params)
 
         gen_params = response
@@ -278,24 +286,24 @@ class TrainModel(Resource):
                         "model path": path_to['CatBoost']}
             return jsonify(response)
 
-        if model_id == 3:
-            prms = model_params['DiffML']
-            differential, lam = prms['differential'], prms['lambda']
-            regressor = dfml.Neural_Approximator(xTrain, yTrain, dydxTrain)
-            print("done")
-
-            regressor.prepare(gen_params['train_size'], differential, weight_seed=42, lam=lam)
-            regressor.train(xTrain, yTrain, dydxTrain, "differential training", lam=lam)
-            predvalues, preddiff = regressor.predict_values_and_derivs(xTest)
-            score = mse(yTest, predvalues)
-            # todo: надо научиться сохранять веса модели в pickle
-            response = {"status": "DiffML model has been trained but wasn't saved."
-                                  " You can't use this model for further prediction",
-
-                        "model score": score,
-                        "model params": model_params['DiffML'],
-                        "model path": 'Saving model weights for this option is not implemented yet.'}
-            return response
+        # if model_id == 3:
+        #     prms = model_params['DiffML']
+        #     differential, lam = prms['differential'], prms['lambda']
+        #     regressor = dfml.Neural_Approximator(xTrain, yTrain, dydxTrain)
+        #     print("done")
+        #
+        #     regressor.prepare(gen_params['train_size'], differential, weight_seed=42, lam=lam)
+        #     regressor.train(xTrain, yTrain, dydxTrain, "differential training", lam=lam)
+        #     predvalues, preddiff = regressor.predict_values_and_derivs(xTest)
+        #     score = mse(yTest, predvalues)
+        #     # todo: надо научиться сохранять веса модели в pickle
+        #     response = {"status": "DiffML model has been trained but wasn't saved."
+        #                           " You can't use this model for further prediction",
+        #
+        #                 "model score": score,
+        #                 "model params": model_params['DiffML'],
+        #                 "model path": 'Saving model weights for this option is not implemented yet.'}
+        #     return response
 
         raise Exception("You need to specify correct model id. "
                         "Check http://127.0.0.1:5001/ to see the ids for available models")
