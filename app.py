@@ -2,7 +2,8 @@ import catboost as cb
 import numpy as np
 from flask import Flask, jsonify, request
 # from flask_restful import Resource, Api
-from flask_restx import Api, Resource
+from flask_restx import Api, Resource, reqparse, abort
+from werkzeug.exceptions import BadRequest
 from sklearn.metrics import mean_squared_error as mse
 
 from option_pricing import BlackScholes as bs
@@ -16,6 +17,8 @@ app = Flask(__name__)
 api = Api(app)
 
 model_path = 'saved_models/'
+if not os.path.exists(model_path):
+    os.mkdir(model_path)
 
 gen_params = {
     'train_size': 1000,
@@ -67,7 +70,7 @@ class ListOfSavedModels(Resource):
 
 api.add_resource(ListOfSavedModels, '/saved_models')
 
-
+@api.route('/RiskFuel',  endpoint='1', methods=['GET', 'POST'])
 class RiskFuel(Resource):
     """
     A class to represent RiskFuel model.
@@ -92,19 +95,27 @@ class RiskFuel(Resource):
         print(jsonify(response))
         return jsonify(response)
 
+    @api.doc(params={'n_hidden': {'description': 'num of neurons per each linear layer',
+                                  'type': int, 'default': model_params['RiskFuel']['n_hidden']},
+                     'n_layers': {'description': 'num of linear layers',
+                                  'type': int, 'default': model_params['RiskFuel']['n_layers']},
+                     'n_epochs': {'description': 'num of training epochs',
+                                  'type': int, 'default': model_params['RiskFuel']['n_epochs']},
+                     },
+             responses={200: 'Model params has been successfully set',
+                        400: 'Bad request'}
+             )
     def post(self):
         """Update model parameters according to a given input"""
-        params = request.json
-        if 'n_hidden' not in params:
-            params.update({'n_hidden': 100})
-        if 'n_layers' not in params:
-            params.update({'n_layers': 3})
-        return params
+        params = dict(request.args)
+        params = {k: int(v) for k, v in params.items()}
+        model_params['RiskFuel'].update(params)
+        return jsonify(model_params['RiskFuel'])
 
 
-api.add_resource(RiskFuel, '/RiskFuel')
+# api.add_resource(RiskFuel, '/RiskFuel')
 
-
+@api.route('/CatBoost',  endpoint='2', methods=['GET', 'POST'])
 class CatBoost(Resource):
     """
         A class to represent CatBoost model.
@@ -129,14 +140,27 @@ class CatBoost(Resource):
         print(jsonify(response))
         return jsonify(response)
 
+    @api.doc(params={'lr': {'description': 'learning rate for gradient descent',
+                                  'type': float, 'default': model_params['CatBoost']['lr']},
+                     'depth': {'description': 'max depth for the tree',
+                                  'type': int, 'default': model_params['CatBoost']['depth']},
+                     'iterations': {'description': 'num of iterations for training',
+                                  'type': int, 'default': model_params['CatBoost']['iterations']},
+                     },
+             responses={200: 'Model params has been successfully set',
+                        400: 'Bad request'}
+             )
     def post(self):
         """Update model parameters according to a given input"""
-        params = request.json
-        model_params['CatBoost'].update(dict(params))
+        params = dict(request.args)
+        params1 = {k: int(v) for k, v in params.items() if k != "lr"}
+        if "lr" in params.keys():
+            params1["lr"] = float(params["lr"])
+        model_params['CatBoost'].update(params1)
         return jsonify(model_params['CatBoost'])
 
 
-api.add_resource(CatBoost, '/CatBoost')
+# api.add_resource(CatBoost, '/CatBoost')
 
 
 # class DiffML(Resource):
@@ -186,17 +210,23 @@ class SetTrainGeneratorParams(Resource):
         return jsonify(response)
 
     @api.doc(params={'train_size': {'description': f'num objects for training dataset',
-                                    'type': 'int', 'default': 1000},
-                     'test_size': {'description': f'num objects for testing dataset',
-                                   'type': 'int', 'default': 500},
-                     'spot': {'description': f'range for spot parametr for generator',
-                              'type': 'tuple', 'default': "0.5, 2."},
-                     'time': {'description': f'range for time parametr for generator',
-                              'type': 'tuple', 'default': "0, 3"},
-                     'sigma': {'description': f'range for sigma parametr for generator',
-                               'type': 'tuple', 'default': "0.1, 0.5"},
-                     'rate': {'description': f'range for rate parametr for generator',
-                              'type': 'tuple', 'default': "-0.01, 0.03"}})
+                                    'type': int, 'default': gen_params['train_size']},
+                     'test_size': {'description': f'num objects for testing dataset. ',
+                                   'type': int, 'default': gen_params['test_size']},
+                     'spot': {'description': f'range for spot parametr for generator . '
+                                             f'Two float values comma separated',
+                              'type': str, 'default': "0.5, 2."},
+                     'time': {'description': f'range for time parametr for generator. '
+                                             f'Two float values comma separated',
+                              'type': str, 'default': "0, 3"},
+                     'sigma': {'description': f'range for sigma parametr for generator. '
+                                              f'Two float values comma separated',
+                               'type': str, 'default': "0.1, 0.5"},
+                     'rate': {'description': f'range for rate parametr for generator. '
+                                             f'Two float values comma separated',
+                              'type': str, 'default': "-0.01, 0.03"}})
+    @api.doc(responses={200: 'Training set params has been successfully set',
+                        400: 'Bad request'})
     def post(self):
         """Set parameters for generator to further create training and testing sets"""
         global gen_params, generator
@@ -204,18 +234,20 @@ class SetTrainGeneratorParams(Resource):
         params = dict(request.args)
         for p in params:
             if p not in response:
-                raise Exception(f"You can't specify parameter {p}. "
-                                f"You can only specify parameters {set(gen_params.keys())}")
+                raise BadRequest(f"You can't specify parameter {p}. "
+                                 f"You can only specify parameters {set(gen_params.keys())}")
             if p in {"spot", "time", "sigma", "rate"}:
-                params[p] = str_to_list(params[p])
+                try:
+                    params[p] = str_to_list(params[p])
+                except:
+                    raise BadRequest(f"Wrong input format for parameter {p}. Must two float values comma separated")
                 try:
                     a, b = params[p]
-
-                    print(params[p])
-                    if a >= b:
-                        raise Exception(f"Parameter {p} must be a pair (begin, end), where begin < end")
                 except:
-                    Exception(f"Parameter {p} must be a pair (begin, end), that specifies the range to sample from")
+                    raise BadRequest(
+                        f"Parameter {p} must be a pair (begin, end), that specifies the range to sample from")
+                if a >= b:
+                    raise BadRequest(f"Parameter {p} must be a pair (begin, end), where begin < end")
             else:
                 params[p] = int(params[p])
         response.update(params)
@@ -231,8 +263,11 @@ class SetTrainGeneratorParams(Resource):
 
 @api.route('/train_model', endpoint='train', methods=['POST'])
 class TrainModel(Resource):
-    @api.doc(params={'model_id': {'description': 'model id to be trained: 1 for RiskFuel, 2 for CatBoost, 3 for DiffML',
-                                  'type': 'int', 'default': 1}})
+    @api.doc(params={'model_id': {'description': 'model id to be trained: 1 for RiskFuel, 2 for CatBoost',
+                                  'type': int, 'default': 1}},
+             responses={200: 'Model has been successfully trained and saved',
+                        400: 'Bad request'}
+             )
     def post(self):
         """
         Train and save model for given model id. If the model has been already trained, it will be overwritten
@@ -240,12 +275,12 @@ class TrainModel(Resource):
         :return: dict with report. dict keys: ["status", "model score", "model params", "model path"].
         "status" shows if the model was successfully triained
         "model score" shows MSE on test set
-        "model params" shows params the model was trained with (default or specified using POST on http://127.0.0.1:5001/model_id)
+        "model params" shows params the model was trained with (default or specified using POST method for a specific model)
         "model path" shows path to the trained and saved model
         """
         try:
             model_id = int(request.args.get('model_id'))
-        except ValueError:
+        except BadRequest:
             return 'model_id must be integer'
         xTrain, yTrain, dydxTrain = generator.dataset(gen_params['train_size'], seed=42)
         xTest, yTest, dydxTest = generator.dataset(gen_params['test_size'], seed=43)
@@ -305,8 +340,8 @@ class TrainModel(Resource):
         #                 "model path": 'Saving model weights for this option is not implemented yet.'}
         #     return response
 
-        raise Exception("You need to specify correct model id. "
-                        "Check http://127.0.0.1:5001/ to see the ids for available models")
+        raise BadRequest("You need to specify correct model id. "
+                         "Check http://127.0.0.1:5001/list_of_models to see the ids for available models")
 
 
 # api.add_resource(TrainModel, '/train_model')
@@ -319,24 +354,36 @@ def del_file(path):
         Exception("No such file. Check http://127.0.0.1:5001/saved_models to see the list of saved models")
 
 
-@app.route('/delete/<int:model_id>', methods=['DELETE'])
-def delete_saved_model(model_id):
+@api.route('/delete', methods=['DELETE'])
+class DeleteSavedModel(Resource):
     """
     Delete saved model for given model id
     :param model_id: 1 for RiskFuel, 2 for CatBoost
     :return deletion status
     """
-    if model_id == 1:
-        del_file(path_to['RiskFuel'])
-        return jsonify(f"Model {model_id} on path {path_to['RiskFuel']} "
-                       f"has been successfully deleted!")
-    elif model_id == 2:
-        del_file(path_to['CatBoost'])
-        return jsonify(f"Model {model_id} on path {path_to['CatBoost']} "
-                       f"has been successfully deleted!")
-    raise Exception("You need to specify correct model id."
-                    " Check http://127.0.0.1:5001/ to see the ids for available models"
-                    " and http://127.0.0.1:5001/saved_models to see the list of saved models")
+
+    @api.doc(params={'model_id': {'description': 'model id to be trained: 1 for RiskFuel, 2 for CatBoost',
+                                  'type': int, 'default': 1}},
+             responses={200: 'Model has been successfully deleted',
+                        400: 'Bad request'}
+             )
+    def delete(self):
+        print(request.args)
+        try:
+            model_id = int(request.args.get('model_id'))
+        except BadRequest:
+            return 'model_id must be integer'
+        if model_id == 1:
+            del_file(path_to['RiskFuel'])
+            return jsonify(f"Model {model_id} on path {path_to['RiskFuel']} "
+                           f"has been successfully deleted!")
+        elif model_id == 2:
+            del_file(path_to['CatBoost'])
+            return jsonify(f"Model {model_id} on path {path_to['CatBoost']} "
+                           f"has been successfully deleted!")
+        raise BadRequest("You need to specify correct model id."
+                        " Check http://127.0.0.1:5001/list_of_models to see the ids for available models"
+                        " and http://127.0.0.1:5001/saved_models to see the list of saved models")
 
 
 @app.route('/predict/<int:model_id>', methods=['POST'])
@@ -367,7 +414,7 @@ def predict(model_id):
     if not os.path.isfile(path):
         return jsonify(f"File {path} does not exist."
                        f"You need to train this model first."
-                       f" Use http://127.0.0.1:5001/train_model/{model_id} "
+                       f" Use http://127.0.0.1:5001/train_model?model_id={model_id} "
                        f"for training the model.")
     if model_id == 1:
         with open(path, 'rb') as f:
@@ -393,7 +440,7 @@ def predict(model_id):
                         "model_params": model_params['CatBoost'],
                         "prediction": list(prediction)})
     raise Exception("You need to specify correct model id."
-                    " Check http://127.0.0.1:5001/ to see the ids for available models"
+                    " Check http://127.0.0.1:5001/list_of_models to see the ids for available models"
                     " and http://127.0.0.1:5001/saved_models to see the list of saved models")
 
 
