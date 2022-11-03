@@ -386,62 +386,98 @@ class DeleteSavedModel(Resource):
                         " and http://127.0.0.1:5001/saved_models to see the list of saved models")
 
 
-@app.route('/predict/<int:model_id>', methods=['POST'])
-def predict(model_id):
-    """
-    Predict option prices for given model id and input parameters
-    :param model_id: 1 for RiskFuel, 2 for CatBoost
-    input parameters format: dict with keys ["spot", "time", "sigma", "rate"] and list values
-    input example:
-        {
-        "rate": [1, 5, 2, 1],
-        "sigma": [2, 1, 3, 2],
-        "spot": [1, 3 ,2, 1],
-        "time": [8, 7, 6, 4]
-        }
-    :return dict with model description and prediction
-    """
-    data = request.json
-    features = ["spot", "time", "sigma", "rate"]
-    empty_inp = {f: [] for f in features}
-    try:
-        data = [np.array(data[f]) for f in features]
-    except:
-        return jsonify({f"Wrong input format. Input must be the following dictionary":
-                            empty_inp})
-    data = np.vstack(data).T
-    path = path_to[model_id]
-    if not os.path.isfile(path):
-        return jsonify(f"File {path} does not exist."
-                       f"You need to train this model first."
-                       f" Use http://127.0.0.1:5001/train_model?model_id={model_id} "
-                       f"for training the model.")
-    if model_id == 1:
-        with open(path, 'rb') as f:
-            params = pickle.load(f)
-        model = rf.RiskFuelNet(n_feature=4,
-                               n_hidden=params["n_hidden"],
-                               n_layers=params["n_layers"],
-                               n_output=1)
-        model.load_state_dict(params['model_state_dict'])
-        model.eval()
-        model.to(rf.device)
-        prediction = rf.predict(model, data).astype(float)
-        return jsonify({"model_id": 1,
-                        "model_name": 'RiskFuel',
-                        "model_params": model_params['RiskFuel'],
-                        "prediction": list(prediction)})
-    if model_id == 2:
-        model = cb.CatBoostRegressor()
-        model.load_model(path)
-        prediction = model.predict(data).astype(float)
-        return jsonify({"model_id": 2,
-                        "model_name": 'CatBoost',
-                        "model_params": model_params['CatBoost'],
-                        "prediction": list(prediction)})
-    raise Exception("You need to specify correct model id."
-                    " Check http://127.0.0.1:5001/list_of_models to see the ids for available models"
-                    " and http://127.0.0.1:5001/saved_models to see the list of saved models")
+data_schema = {
+    'type': 'object',
+    'properties': {
+        'rate': {
+            'type': 'array',
+            'items': {'type': 'number'},
+            'minItems': 1,
+        },
+        'sigma': {
+            'type': 'array',
+            'items': {'type': 'number'},
+            'minItems': 1,
+        },
+        'spot': {
+            'type': 'array',
+            'items': {'type': 'number'},
+            'minItems': 1,
+        },
+        'time': {
+            'type': 'array',
+            'items': {'type': 'number'},
+            'minItems': 1,
+        },
+
+    },
+    'additionalProperties': False,
+    'required': ['rate', 'sigma', 'spot', 'time'],
+}
+request_data = api.schema_model('data', data_schema)
+
+@api.route('/predict/<int:model_id>', methods=['POST'])
+class Predict(Resource):
+    @api.doc(params={'model_id': {'description': 'model id to be trained: 1 for RiskFuel, 2 for CatBoost',
+                                  'type': int, 'default': 1}})
+    @api.expect(request_data, validate=True)
+    def post(self, model_id):
+        """
+        Predict option prices for given model id and input parameters
+        :param model_id: 1 for RiskFuel, 2 for CatBoost
+        input parameters format: dict with keys ["spot", "time", "sigma", "rate"] and list values
+        input example:
+            {
+            "rate": [1, 5, 2, 1],
+            "sigma": [2, 1, 3, 2],
+            "spot": [1, 3 ,2, 1],
+            "time": [8, 7, 6, 4]
+            }
+        :return dict with model description and prediction
+        """
+        data = request.json
+        features = ["spot", "time", "sigma", "rate"]
+        empty_inp = {f: [] for f in features}
+        try:
+            data = [np.array(data[f]) for f in features]
+        except:
+            return jsonify({f"Wrong input format. Input must be the following dictionary":
+                                empty_inp})
+        data = np.vstack(data).T
+        path = path_to[model_id]
+        if not os.path.isfile(path):
+            return jsonify(f"File {path} does not exist."
+                           f"You need to train this model first."
+                           f" Use POST method on train_model with model_id={model_id} "
+                           f"for training the model.")
+        if model_id == 1:
+            with open(path, 'rb') as f:
+                params = pickle.load(f)
+            model = rf.RiskFuelNet(n_feature=4,
+                                   n_hidden=params["n_hidden"],
+                                   n_layers=params["n_layers"],
+                                   n_output=1)
+            model.load_state_dict(params['model_state_dict'])
+            model.eval()
+            model.to(rf.device)
+            prediction = rf.predict(model, data).astype(float)
+            model_descr = {"id": 1,
+                            "name": 'RiskFuel',
+                            "params": model_params['RiskFuel']}
+            return jsonify({"model" : model_descr,
+                            "prediction": list(prediction)})
+        if model_id == 2:
+            model = cb.CatBoostRegressor()
+            model.load_model(path)
+            prediction = model.predict(data).astype(float)
+            model_descr = {"id": 2,
+                            "name": 'CatBoost',
+                            "params": model_params['CatBoost']}
+            return jsonify({"model" : model_descr,
+                            "prediction": list(prediction)})
+        raise Exception("You need to specify correct model id."
+                        " Check http://127.0.0.1:5001/list_of_models to see the ids for available models"
+                        " and http://127.0.0.1:5001/saved_models to see the list of saved models")
 
 
 if __name__ == '__main__':
